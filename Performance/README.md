@@ -98,4 +98,4 @@ kubectl create secret generic my-s3-credentials --from-literal=accessKey=<YOUR-A
   ➜  InfraProj git:(master) ✗ sh execute.sh 
 ```
 - See the report opened in browser
-![](https://github.com/TestProj/InfraProj/tree/ged-2020/Performance/blob/gatling/image/gatling_report.png)
+![](https://github.com/TestProj/InfraProj/blob/ged-2020/Performance/gatling/image/gatling_report.png)
