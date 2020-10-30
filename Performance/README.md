@@ -19,7 +19,7 @@
   ➜  InfraProj git:(master) ✗ kubectl apply -f rbac-argo.yaml
 ```
 - Create AWS Setup for your reports infrastrure 
-* Create AWS Users
+* Create AWS User
 ```
 perf-user
 ```

@@ -1,18 +1,12 @@
 # InfraProj
 This Project will help on Executing the Chaos and Performance execution leverging open source tools
 
-## Performance Execution 
-* Problem 
-* What 
-* How 
-* Benifits 
-### Gatling Execution via Test Containers 
 
 #### Prereq 
 - ** Kubernetes Cluster installed and setup on your infrastrutre 
 - ** You have access to connect to this cluster and execute kubectl in admin mode
 #### Argo Workflows
-The Argo workflow infra consists of the Argo workflow CRDs, Workflow Controller, associated RBAC & Argo CLI. The steps
+The [Argo](https://github.com/argoproj/argo) workflow infra consists of the Argo workflow CRDs, Workflow Controller, associated RBAC & Argo CLI. The steps
 shown below installs argo in the standard cluster-wide mode wherein the workflow controller operates on all
 namespaces. Ensure that you have the right permission to be able to create the said resources.
 
@@ -49,6 +43,14 @@ NAME                                   READY   STATUS    RESTARTS   AGE
 argo-server-78b774dd56-j8xwx           1/1     Running   0          13h
 workflow-controller-589bf468d7-bwjtr   1/1     Running   0          13h
 ```
+
+- How to access the argo UI
+Please follow the instruction [here](https://github.com/argoproj/argo/blob/master/docs/quick-start.md)
+```
+kubectl -n argo port-forward deployment/argo-server 2746:2746
+```
+This will serve the user interface on http://localhost:2746
+
 - Install the argo CLI on the harness/test machine (where the kubeconfig is available)
 ```
 InfraProj git:(master) curl -sLO https://github.com/argoproj/argo/releases/download/v2.8.0/argo-linux-amd64
