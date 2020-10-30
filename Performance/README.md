@@ -3,7 +3,13 @@
 ### Prereq 
 * Please follow the Readme on InfraProj and have Argo and application setup in your cluster
 
+### Architeture 
+![](https://github.com/TestProj/InfraProj/blob/ged-2020/Performance/Distro.png)
 
+### WorkFlow
+![](https://github.com/TestProj/InfraProj/blob/ged-2020/Performance/Distro-Workflow.png)
+
+### Setup 
 - Create infra namespace for execution infra-ns
 ```
   ➜  InfraProj git:(master) ✗ kubectl create ns infra-ns
