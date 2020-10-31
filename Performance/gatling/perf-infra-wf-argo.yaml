@@ -7,7 +7,7 @@ metadata:
   generateName: perf-infra-
 spec:
   serviceAccountName: argowf-svcacc
-  entrypoint: perf-infra
+  entrypoint: pdbcreate
   poddisruptionbudget:
     minavailable: 100%
   # must complete in 1m
@@ -179,9 +179,9 @@ spec:
             # It is possible to disable tar.gz archiving by setting the archive strategy to 'none'
             # Disabling archiving has the following limitations on S3: symboloic links will not be
             # uploaded, as S3 does not support the concept/file mode of symlinks.
-            # this will work on your local machine as well as any of ci system as result will be uploaded to S3
-            archive:
-              none: {}
+            # So you will be able to download from argo UI, but not been uploaded to AWS s3, this is only if you are using argo UI
+            # archive:
+            #   none: {}
 
             s3:
               # Use the corresponding endpoint depending on your S3 provider:

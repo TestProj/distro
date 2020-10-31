@@ -3,7 +3,7 @@
 ### Prereq 
 * Please follow the Readme on InfraProj and have Argo and application setup in your cluster
 
-### Architeture 
+### Architecture 
 ![](https://github.com/TestProj/InfraProj/blob/ged-2020/Performance/Distro.png)
 
 ### WorkFlow
@@ -18,6 +18,21 @@
 ```
   ➜  InfraProj git:(master) ✗ kubectl apply -f rbac-argo.yaml
 ```
+#### Argo Only Report Setup 
+- Execute argo submit in namespace infra-ns
+```
+  ➜  InfraProj git:(master) ✗ argo submit perf-infra-wf-argo.yaml  --watch 
+```
+- Execute Locally, make sure you have credentails setup on your shell, for user you have created
+```
+kubectl create secret generic my-s3-credentials --from-literal=accessKey=<YOUR-ACCESS-KEY> --from-literal=secretKey=<YOUR-SECRET-KEY>
+```
+- Execute End 2 End 
+```
+  ➜  InfraProj git:(master) ✗ sh execute_gatling_argo.sh 
+```
+
+#### AWS Report Setup 
 - Create AWS Setup for your reports infrastrure 
 * Create AWS User
 ```
@@ -101,7 +116,6 @@ kubectl create secret generic my-s3-credentials --from-literal=accessKey=<YOUR-A
 ```
 - Execute End 2 End 
 ```
-  ➜  InfraProj git:(master) ✗ sh execute.sh 
+  ➜  InfraProj git:(master) ✗ sh execute_gatling.sh 
 ```
-- See the report opened in browser
-![](https://github.com/TestProj/InfraProj/blob/ged-2020/Performance/gatling/image/gatling_report.png)
+

@@ -16,7 +16,7 @@ aws_access_key_id="********"
 echo "aws_access_key_id=$aws_access_key_id"
 aws_secret_access_key="******"
 echo "aws_secret_access_key=$aws_secret_access_key"
-argo submit gatling/perf-infra-wf.yaml -psimulationClass=Echo.EchoSimulation --generate-name load-test-${datetimeNow}- -pquery=/health/full -pbaseurl="https://XXX.amazonaws.com" -puniqueName=run_${datetimeNow} -ps3BucketName=${bucket} --serviceaccount ${serviceaccount} --wait
+argo submit gatling/perf-infra-wf.yaml -psimulationClass=Echo.EchoSimulation --generate-name load-test-${datetimeNow}- -plimit=2 -pquery=/health/full -pbaseurl="https://XXX.amazonaws.com" -puniqueName=run_${datetimeNow} -ps3BucketName=${bucket} --serviceaccount ${serviceaccount} --wait
 echo "######################################################"
 
 aws configure set aws_access_key_id ${aws_access_key_id}
