@@ -1,10 +1,13 @@
 # InfraProj
 This Project will help on Executing the Chaos and Performance execution leverging open source tools
 
+#### Assumption
+- You have AWS account access 
+- You have kubernetes cluster running on using AWS resources
 
 #### Prereq 
-- ** Kubernetes Cluster installed and setup on your infrastrutre 
-- ** You have access to connect to this cluster and execute kubectl in admin mode
+- Kubernetes Cluster installed and setup on your infrastrutre 
+- You have access to connect to this cluster and execute kubectl in admin mode
 #### Argo Workflows
 The [Argo](https://github.com/argoproj/argo) workflow infra consists of the Argo workflow CRDs, Workflow Controller, associated RBAC & Argo CLI. The steps
 shown below installs argo in the standard cluster-wide mode wherein the workflow controller operates on all
@@ -85,6 +88,11 @@ nginx-demo-app-68c58bb7d7-jfrrr   1/1     Running   0          94s
 nginx-demo-app-68c58bb7d7-s98wz   1/1     Running   0          94s
   ```
 - You can access this service over `https://<node-ip>:<nodeport>`
+- If you use ingress you might get ingress endpoint for application
 
-### JMeter Execution via Test Containers 
-* WIP
+### Support for other cloud Provider 
+- WIP
+
+### Support for Minikube
+- WIP
+
