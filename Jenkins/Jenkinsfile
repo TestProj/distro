@@ -1,0 +1,182 @@
+import java.text.SimpleDateFormat
+def serviceName = 'my-application'
+def appName = "my-application"
+def deployable_branches = ["master"]
+def ptNameVersion = "${appName}-${UUID.randomUUID().toString().toLowerCase()}"
+def registry = "docker.com"
+def app_wait_timeout = 1200
+def stage_timeout = 25
+def git_timeout = 2
+def preprodOnly = true
+def git_repo = ""
+def buildURL =""
+// ****** Load Test default values *******
+def noOfPods = "1"
+def healthUrlDefault = "https://my-application.com/health/full"
+def pfi_namespace = "test-namespace"
+def waitForUserInputMins = 2
+def karateEnvDefault = "prf"
+def peakTPSDefault = "1"
+def rampupTimeDefault = "1"
+def Custom = "Custom Message"
+def steadyStateTimeDefault = "1"
+def baseurl = "https://my-application.com"
+// **********************************************
+def dateFormat = new SimpleDateFormat("yyyyMMddHHmm")
+def date = new Date()
+def date_tag = dateFormat.format(date)
+def clusterMap = [:]
+
+properties([
+  buildDiscarder(logRotator(daysToKeepStr:'', numToKeepStr: '50', artifactDaysToKeepStr: '', artifactNumToKeepStr: ''))
+])
+
+podTemplate(name: ptNameVersion, label: ptNameVersion, containers: [
+    containerTemplate(name: 'cdtools', image: 'argocd-utils:stable', alwaysPullImage: true, ttyEnabled: true, command: 'cat', args: ''),
+    ],
+    volumes: [hostPathVolume(hostPath: '/var/run/dind/docker.sock', mountPath: '/var/run/docker.sock')]
+)
+
+{
+    try {
+        // DO NOT CHANGE
+        def isPR = env.CHANGE_ID != null
+        def branch = env.CHANGE_ID != null ? env.CHANGE_TARGET : env.BRANCH_NAME
+
+        node(ptNameVersion) {
+            // DO NOT CHANGE
+            def scmInfo = checkout scm
+            println(scmInfo.GIT_URL)
+            buildURL = env.BUILD_URL
+            git_repo = scmInfo.GIT_URL
+            println("********URL***********")
+            def shortCommit = "${scmInfo.GIT_COMMIT}"[0..6]
+            tag = "${env.BUILD_TAG}-${shortCommit}"
+            def hasReleaseTag = sh(returnStdout: true, script: 'git tag --points-at HEAD').trim().startsWith('release-')
+
+            // PFI START *****
+            def envName = "pfi"
+            def userInput = [pods:noOfPods, users:noOfUsers, duration:durationInMin, peaktps:peakTPSDefault, rampuptime:rampupTimeDefault, steadystatetime:steadyStateTimeDefault, perfjson:perfJsonDefault, url:baseurl, karateenv:karateEnvDefault, Custom:Custom , Project:Project, Stage:Stage, Service:Service, Monitoring:Monitoring, StartTime:StartTime, EndTime:EndTime, WaitForResult:WaitForResult]
+            stage('Inputs for Load Test') {
+                timeout(time:waitForUserInputMins, unit:'MINUTES') {
+                    try {
+                        userInput = input (
+                            message: 'Please enter the details for Load Testing.',
+                            id: 'userInput',
+                            parameters: [
+                                [$class: 'StringParameterDefinition', defaultValue: userInput.pods, description: 'Number of Pods', name: 'pods'],
+                                [$class: 'StringParameterDefinition', defaultValue: userInput.peaktps, description: 'Peak TPS per Pod', name: 'peaktps'],
+                                [$class: 'StringParameterDefinition', defaultValue: userInput.rampuptime, description: 'Ramp up time in minutes', name: 'rampuptime'],
+                                [$class: 'StringParameterDefinition', defaultValue: userInput.steadystatetime, description: 'Steady state in minutes per Pod', name: 'steadystatetime'],
+                                [$class: 'StringParameterDefinition', defaultValue: userInput.url, description: 'Base url', name: 'url'],
+                                [$class: 'StringParameterDefinition', defaultValue: userInput.Custom, description: 'Base Custom', name: 'Custom'],
+                            ]
+                        )
+                    } catch (error) {
+                        echo "Using default values."
+                    }
+                }
+                echo ("No of Pods is "+userInput.pods+", Users count per pod "+userInput.users + ", test duration per pod "+ userInput.duration + "peakTps "+userInput.peaktps +" RampUpTime " +userInput.rampuptime+" SteadySateTime " +userInput.steadystatetime+ " , Custom value is " + userInput.Custom + ", base url is " + userInput.url + ", Perf Json is " + userInput.perfjson + ", Karate env is " + userInput.karateenv )
+                milestone()
+            }
+            stage("Load Testing @ ${envName}") {
+                boolean failed = false;
+                try {
+                    withCredentials([file(credentialsId: 'PERF_INFRA_SECRET', variable: 'PERF_INFRA_SECRET')]) {
+                        container('cdtools') {
+                            println("invoking argo ${appName}")
+                            sh """#!/bin/sh -xe
+                            ls -al
+                            mkdir \${HOME}/.kube
+                            cp \${PERF_INFRA_SECRET} \${HOME}/.kube/config
+                            cat \${HOME}/.kube/config
+                            """
+                            sh("argo list --kubeconfig \${HOME}/.kube/config")
+                            
+                            sh("argo submit test/load-tests/perf-infra-wf.yaml -plimit=${userInput.pods} -ppeakTPS=${userInput.peaktps} -prampupTime=${userInput.rampuptime} -psteadyStateTime=${userInput.steadystatetime} -pCustom=${userInput.Custom} -pbaseurl=${userInput.url} -pgitrepo=\$(echo $git_repo | cut -d'/' -f5) -pbuildURL=${env.BUILD_URL} -penvName=$envName -pbuildnum=${env.BUILD_NUMBER} -puniqueName=${ptNameVersion} --serviceaccount argowf-svcacc --watch")
+                            sh("ls -lrt /tmp")
+                            sh("argo delete --older 7d")
+                            sh("argo list")
+                        }
+                    }
+                } catch (err) {
+                    failed = true;
+                } finally {
+                    processStatus(failed, "Test_${envName}", envName)
+                }
+            }
+            stage("Download Final results from s3") {
+                boolean failed = false;
+                try {
+                    withCredentials([usernamePassword(credentialsId: "artifactory-${serviceName}", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                        container('cdtools') {
+                            sh "echo ${ptNameVersion} > /tmp/uniqueNm.txt"
+                            sh "echo ${appName}-${envName} > /tmp/appNm.txt"
+                            sh "echo ${WORKSPACE} > /tmp/workspace.txt"
+                            sh "echo ${pfi_namespace} > /tmp/pfi_namespace.txt"
+                            sh "echo ${date_tag} > /tmp/date_tag_namespace.txt"
+
+                            sh '''
+                                uniqueNm=`cat /tmp/uniqueNm.txt`
+                                echo $uniqueNm
+                                appNm=`cat /tmp/appNm.txt`
+                                echo $appNm
+                                workspacepath=`cat /tmp/workspace.txt`
+                                echo $workspacepath
+                                pfi_namespace=`cat /tmp/pfi_namespace.txt`
+                                echo $pfi_namespace
+                                date_tag=`cat /tmp/date_tag_namespace.txt`
+                                echo $date_tag
+                                S3_BUCKET_ACCESS_ROLE='arn:aws:iam::123456789:role/perf_res_final_s3read'
+                                echo "S3 Bucket Access Role: ${S3_BUCKET_ACCESS_ROLE}"
+                                temp_role=$(aws sts assume-role --role-arn ${S3_BUCKET_ACCESS_ROLE} --role-session-name AWSCLI-Session)
+                                echo ${temp_role}
+                                export AWS_ACCESS_KEY_ID=$(echo ${temp_role} | jq .Credentials.AccessKeyId | xargs)
+                                export AWS_SECRET_ACCESS_KEY=$(echo ${temp_role} | jq .Credentials.SecretAccessKey | xargs)
+                                export AWS_SESSION_TOKEN=$(echo ${temp_role} | jq .Credentials.SessionToken | xargs)
+                                sleep 20
+                                # aws s3 ls s3://my-s3-bucket/results/${appNm}/${uniqueNm}/finalResult/
+                                aws sts get-caller-identity
+                                mkdir -p ${workspacepath}/gatling_results/gatlingsimulation-${date_tag}/
+                                aws s3 cp "s3://my-s3-bucket/results/${pfi_namespace}/${uniqueNm}/finalResult/perf-in/simulations/" ${workspacepath}/gatling_results/gatlingsimulation-${date_tag}/ --recursive
+                                ls -R ${workspacepath}/gatling_results/gatlingsimulation-${date_tag}/
+                                cd ${workspacepath}/gatling_results/gatlingsimulation-${date_tag}/
+                            '''
+                            sh "pwd"
+                            sh "ls -R"
+                            
+                        }
+                    }
+                } catch (err) {
+                    failed = true;
+                } finally {
+                    
+                }
+            }        
+
+            if (fileExists("${WORKSPACE}/gatling_results/gatlingsimulation-${date_tag}")) {
+                stage("Archive Load Test Results") {
+                    
+                    archiveArtifacts(artifacts: "gatling_results/**/*.*");
+                    sh "ls -l gatling_results/*/*"
+                    gatlingArchive()
+                     sh "echo Results Link : ${env.BUILD_URL}/artifact/gatling_results/gatlingsimulation-${date_tag}/index.html"
+
+                }
+            }
+
+        } // node
+        if (preprodOnly || isPR) {
+            echo "Preprod or PR build, not going to try Stage or Prod"
+            currentBuild.result = 'SUCCESS'
+            return
+        }
+    } catch (e) {
+        echo "Caught error during pipeline: ${e}"
+        throw e
+    } finally {
+        echo "Current build result = ${currentBuild.result}"
+       
+    }
+
+}
