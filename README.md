@@ -1,6 +1,6 @@
 # InfraProj
 This Project will help on Executing the Chaos and Performance execution leverging open source tools
-![](https://github.com/testproj/distro/blob/ged-2020/Distro.png)
+![](https://github.com/testproj/distro/blob/ged-2020/Icon.png)
 
 #### Assumption
 - You have AWS account access 
