@@ -1,0 +1,166 @@
+#!groovy
+@Library(['distro-library']) _
+import java.text.SimpleDateFormat
+
+def serviceName = 'my-application'
+def ptNameVersion = "${serviceName}-${UUID.randomUUID().toString().toLowerCase()}"
+def loadConfig = [:]
+def currentLoadTest = [:]
+def dateTimeTag = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date())
+loadConfig['uniqueName'] = ptNameVersion
+def s3Config = [:]
+def temp_role = ""
+
+node {
+    // setup the global static configuration
+    confg = readYaml file: 'load-config.yaml'
+    scmInfo = checkout scm
+    git_repo = scmInfo.GIT_URL
+    loadConfig['gitUrl'] = git_repo
+}
+def userInput = [pods:          config.noOfPods.toString(), 
+                peaktps:        config.peakTPSDefault.toString(), 
+                rampuptime:     config.rampupTimeDefault.toString(),
+                steadystatetime:config.steadyStateTimeDefault.toString(), 
+                url:            config.baseurl, 
+                simulationClass:config.simulationClass, 
+                query:          config.query, 
+                Custom:         config.Custom,
+                namespaceEnv:   config.namespaceEnv]
+
+pipeline {
+    agent {
+        kubernetes {
+            label "${config.pod_label}"
+            yamlFile 'KubernetesPods.yaml'
+        }
+    }
+
+    options{
+        timestamps()
+        buildDiscarder logRotator(artifactDaysToKeepStr: '30', artifactNumToKeepStr: '15', daysToKeepStr: '30', numToKeepStr: '15')
+        // disableConcurrentBuilds()
+    }
+
+    environment {
+        
+        waitForUserInputMins = 2
+        pfi_namespace = "${config.pfi_namespace}"
+        envName = "pfi"
+    }
+
+    post {
+        always {
+            sendMetrics(config)
+        }
+        fixed {
+            echo "Stage Status: fixed"
+        }
+        unsuccessful {
+            echo "Stage Status: failure"
+        }
+    }
+
+    stages {
+        stage('Inputs for Load Test') {
+            when {not{changeRequest()}}
+            steps {
+                timeout(time: waitForUserInputMins, unit: 'MINUTES') {
+                    waitUntil {
+                        script {
+                            userInput = input id: 'userInput',
+                                    message: "Please enter the details for Load Testing.",
+                                    parameters: [
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.pods, description: 'Number of Pods', name: 'pods'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.peaktps, description: 'Peak TPS per Pod', name: 'peaktps'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.rampuptime, description: 'Ramp up time in minutes', name: 'rampuptime'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.steadystatetime, description: 'Steady state in minutes per Pod', name: 'steadystatetime'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.url, description: 'Base url', name: 'url'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.Custom, description: 'Base Custom', name: 'Custom'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.Project, description: 'Name of your Keptn Project for Quality Gate Feedback', name: 'Project'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.Stage, description: 'Stage in your Keptn project used for for Quality Gate Feedback', name: 'Stage'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.Service, description: 'Servicename used to keep SLIs and SLOs', name: 'Service'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.Monitoring, description: 'Select which monitoring tool should be configured as SLI provider', name: 'Monitoring'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.WaitForResult, description: 'How many minutes to wait until Keptn is done? 0 to not wait', name: 'WaitForResult'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.simulationClass, description: 'gatling.simulationClass value', name: 'simulationClass'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.query, description: 'What query we want to execute defaul is /health/full', name: 'query'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.loadTestType, description: 'valid values - small, medium, large, xlarge, chaos', name: 'loadTestType'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.testType, description: 'Type if test (load/chaos)', name: 'testType'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.cluster, description: 'Cluster name', name: 'cluster'],
+                                        [$class: 'StringParameterDefinition', defaultValue: userInput.namespaceEnv, description: 'Namespace env', name: 'namespaceEnv']
+                                    ]
+                            return true
+                        }
+                    }
+                }
+                echo "DateTimeTag: ${dateTimeTag} Pods: ${userInput.pods}, Peak tps per pod: ${userInput.peaktps}, Ramp Up Time: ${userInput.rampuptime}, Steady State Time: ${userInput.steadystatetime}, Custom: ${userInput.Custom}, Base URL: ${userInput.url}, ${userInput.simulationClass}, ${userInput.query}"
+            }
+        }
+
+
+        stage('Load Testing @ pfi') {
+            when {not{changeRequest()}}
+            steps {
+                withCredentials([file(credentialsId: config.jenkins_credentialsId, variable: 'PERF_INFRA_SECRET')]) {
+                    container('cdtools') {
+                        echo "invoking argo ${appName}"
+                        sh """#!/bin/sh -xe
+                                mkdir \${HOME}/.kube
+                                cp \${PERF_INFRA_SECRET} \${HOME}/.kube/config
+                            """
+                        script {
+                            loadConfig['kubeConfig'] = "${PERF_INFRA_SECRET}"
+                            loadConfig['infraYaml'] = config.infraYaml
+                            loadConfig['accountName'] = 'argowf-svcacc'
+                            loadConfig['envName'] = "${envName}"
+                            userInput['generatedName'] = "pfi-${userInput.testType}-${userInput.cluster}-${userInput.namespaceEnv}-${dateTimeTag}"
+                            currentLoadTest = runLoadTests(config, userInput, loadConfig)
+                        }
+                        print currentLoadTest
+                        script {
+                            loadConfig["loadTestStartTime"] = currentLoadTest.loadTestStartTime
+                            loadConfig["loadTestEndTime"] = currentLoadTest.loadTestEndTime
+                            loadConfig["totalTimeInSecs"] = currentLoadTest.totalTimeInSecs
+                            loadConfig["totalTimeInMins"] = currentLoadTest.totalTimeInMins
+                        }
+                    }
+                }
+            }
+
+        }
+
+        stage ('Download Final Results From S3') {
+            steps {
+                script {
+                    catchError(buildResult: 'SUCCESS', message: 'Recover from AWS errors', stageResult: 'FAILURE') {
+                        withCredentials([usernamePassword(credentialsId: "artifactory-${serviceName}", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                            container('jnlp') {
+                                    s3['s3Bucket'] = config.s3bucket
+                                    s3Config['uniqueNum'] = "${ptNameVersion}"
+                                    s3Config['appNm'] = "${appName}-${envName}"
+                                    s3Config['pfiNamespace'] = "${pfi_namespace}"
+                                    s3Config['accessRole'] = "${accessRole}"
+                                    s3Config['resultsPath'] = "${WORKSPACE}/results"
+                                    s3Config['s3Path'] = "${s3bucketName}/results/${pfi_namespace}/${ptNameVersion}/finalResult/perf-in/simulations/"
+                                    s3Config['s3WaitTimeSec'] = "20"
+                                    s3Config['dateTimeTag'] = "${dateTimeTag}"
+                                downloadResultsFromS3(config, s3Config)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+                        
+        stage ('Test Results') {
+            steps {
+                script {
+                    archiveArtifacts 'results/**/*.*'
+                    gatlingArchive()
+                    echo "Results Link : ${BUILD_URL}/artifact/results/gatlingsimulation-${dateTimeTag}/index.html"
+                }
+            }
+        }
+
+    }
+}
