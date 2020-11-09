@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: argocli
+      image: argoproj/argocli
+      alwaysPullImage: true
+      tty: true
+      command: [ "cat" ]
+    - name: jnlp
+      image: jenkinsci/jnlp-slave
+      alwaysPullImage: true
+      args: [ "$(JENKINS_SECRET)", "$(JENKINS_AGENT_NAME)", "-url", "$(JENKINS_URL)" ]
+      tty: true
+      volumeMounts:
+      - name: shared-build-output
+        mountPath: /var/run/outputs
+  volumes:
+  - name: dind-volume
+    hostPath:
+      path: /var/run/dind/docker.sock
+  - name: shared-build-output
+    emptyDir: {}

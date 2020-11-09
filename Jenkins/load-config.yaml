@@ -1,0 +1,14 @@
+loadTest:
+  infraYaml: perf-wfs/perf-run-wf.yaml
+  noOfPods: "1"
+  generateNameDefault: load-test-
+  peakTPSDefault: "1"
+  rampupTimeDefault: "1" 
+  steadyStateTimeDefault: "1"
+  Custom: Load Test
+  baseurl: https://my-application.com
+  Service: my-application
+  simulationClass: Echo.EchoSimulation
+  query: /health/full
+  pfi_namespace: perf-namespace
+  jenkins_credentialsId: PERF_INFRA_SECRET
