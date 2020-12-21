@@ -99,10 +99,12 @@ nginx-demo-app-68c58bb7d7-s98wz   1/1     Running   0          94s
 
 ### Blog 
 | Blog          | Reference   |
+|-----------------------|----------------------------------------------------------------------------------|
 | Distro   | Distributed Load Testing Using Argo in Kubernetes  [here](https://sumitnagal.medium.com/distributed-load-testing-using-argo-in-kubernetes-distro-132c350f8733) |
 
 ### Session and Presentation 
 | Community          | Reference (if available)                                                         | Date |
+|-----------------------|----------------------------------------------------------------------------------| ----------------------------- |
 | Argo Community   | Load testing infra with Argo workflow [here](https://youtu.be/eqm8bhrFuiY?start=659&end=2631) | May-2020 |
 | Keptn Community   | Load testing and Quality gates on Kubernetes [here](https://www.youtube.com/watch?t=401&v=Omprl5OFtEw&feature=youtu.be) | Dec 2020 |
 
