@@ -107,4 +107,5 @@ nginx-demo-app-68c58bb7d7-s98wz   1/1     Running   0          94s
 |-----------------------|----------------------------------------------------------------------------------| ----------------------------- |
 | Argo Community   | Load testing infra with Argo workflow [here](https://youtu.be/eqm8bhrFuiY?start=659&end=2631) | May-2020 |
 | Keptn Community   | Load testing and Quality gates on Kubernetes [here](https://www.youtube.com/watch?t=401&v=Omprl5OFtEw&feature=youtu.be) | Dec 2020 |
+| Argo Community   | Distributed Load Infrastructure - DISTRO [here](https://docs.google.com/presentation/d/1oukXc5YHBFMg6Z9X4IHBQJbZ01K9rjI7jn0DTSi52vg/edit?usp=sharing) | Jan 2021 |
 
